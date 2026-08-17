@@ -1800,6 +1800,18 @@ function steam_search_appid(title)
     return nil
 end
 
+-- Frontend-callable wrapper around steam_search_appid, for the automatic
+-- fallback when a non-Steam shortcut has no manual mapping yet. Reuses the
+-- same confidence heuristic and memoized cache as the Xbox/patch-notes
+-- cross-reference, so it stays consistent with the rest of the plugin.
+function auto_match_title(title)
+    local appid = steam_search_appid(title)
+    if appid then
+        return cjson.encode({ found = true, appid = appid })
+    end
+    return cjson.encode({ found = false })
+end
+
 -- ── SteamGridDB: universal transparent logos ───────────────────────────
 -- Neither Xbox/Microsoft nor Epic reliably expose a clean transparent wordmark
 -- logo. SteamGridDB does, for almost every game. Requires a free API key, which

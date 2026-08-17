@@ -6,6 +6,7 @@ const saveMappingBackend   = callable<[{ non_steam_id: string; steam_id: string 
 const removeMappingBackend = callable<[{ non_steam_id: string }], string>('remove_mapping');
 const getAllMappings        = callable<[], string>('get_all_mappings');
 const fetchGameData         = callable<[{ steam_app_id: string }], string>('fetch_game_data');
+const autoMatchTitleBackend  = callable<[{ title: string }], string>('auto_match_title');
 const fetchFriendPersonasBackend = callable<[{ steam_ids_csv: string }], string>('fetch_friend_personas');
 const fetchCommunityContentBackend = callable<[{ steam_app_id: string }], string>('fetch_community_content');
 const feLogBackend         = callable<[{ msg: string }], string>('fe_log');
@@ -835,6 +836,36 @@ function findMappingForTitle(title: string): string | null {
 		if (normalizeTitle(k) === key) return mappings[k];
 	}
 	return null;
+}
+
+const autoMatchCache: Record<string, string | null> = {};
+
+/** Automatic fallback for titles with no manual mapping yet: reuses the
+ *  backend's confident Steam Store cross-reference (same heuristic used
+ *  internally for Xbox logos / patch notes). Cached both in-memory and in
+ *  localStorage so repeat visits don't re-hit the search API. Manual
+ *  mappings (Properties -> Linked Game) always take priority and are
+ *  checked by the caller before this runs. */
+async function getAutoMatchedAppId(title: string): Promise<string | null> {
+	const key = normalizeTitle(title);
+	if (key in autoMatchCache) return autoMatchCache[key];
+	const cached = cacheGet<{ appid: string | null }>('automatch_' + key);
+	if (cached) {
+		autoMatchCache[key] = cached.appid;
+		return cached.appid;
+	}
+	try {
+		const json = await autoMatchTitleBackend({ title });
+		const data = JSON.parse(json);
+		const appid = data.found ? String(data.appid) : null;
+		autoMatchCache[key] = appid;
+		cacheSet('automatch_' + key, { appid });
+		return appid;
+	} catch (e) {
+		backendLog('Auto-match failed for "' + title + '": ' + e);
+		autoMatchCache[key] = null;
+		return null;
+	}
 }
 
 // ── Localization ────────────────────────────────────────────────────────
@@ -3339,7 +3370,12 @@ async function tryInjectLibraryData(doc: Document): Promise<void> {
 
 	const notice = noticeInfo.element;
 	const gameTitle = noticeInfo.title;
-	const steamAppId = findMappingForTitle(gameTitle);
+	// Manual link (Properties -> Linked Game) always wins; only fall back to
+	// the automatic Steam Store match when nothing has been linked by hand.
+	let steamAppId = findMappingForTitle(gameTitle);
+	if (!steamAppId) {
+		steamAppId = await getAutoMatchedAppId(gameTitle);
+	}
 	if (!steamAppId) return;
 
 	// Epic-linked games use a completely separate render path (egdata metadata

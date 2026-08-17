@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased - Automatic Steam matching
+
+Non-Steam shortcuts with no manual link now try an automatic Steam Store match by name first, using the same confidence heuristic already used internally for Xbox logo and patch note cross-referencing. A manual link set through Properties -> Linked Game always takes priority when one exists.
+
+### Added
+
+- Automatic Steam Store matching as a fallback for shortcuts with no manual "Linked Game" set, so most games work out of the box without pasting an AppID or store link by hand.
+
 ## v1.0.1 - Epic Games and Xbox support
 
 Game Data Linker now works with Epic Games Store and Xbox games, not just Steam. Paste an Epic or Xbox store link into a non-Steam shortcut and its library page fills in like a Steam-linked game.
